@@ -1,21 +1,41 @@
 const User = require("../models/User");
 const { StatusCodes } = require("http-status-codes");
-const bcrypt = require("bcryptjs");
 
 class Auth {
   static Register = async (req, res) => {
-    const { name, password, email } = req.body;
+    const user = await User.create({ ...req.body });
+    const token = user.createJWT();
 
-    const salt = await bcrypt.genSalt(10);
-    const hashed = await bcrypt.hash(password, salt);
-    const tempUser = { name, password: hashed, email };
-
-    const user = await User.create({ ...tempUser });
-    res.status(StatusCodes.CREATED).json({ user });
+    res.status(StatusCodes.CREATED).json({ token, user: { name: user.name } });
   };
 
   static Login = async (req, res) => {
-    res.send("Login route");
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ msg: "please provide both email and password" });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res
+        .status(StatusCodes.UNAUTHORIZED)
+        .json({ msg: "Invalid credentials" });
+    }
+
+    const isPassword_correct = await user.checkPass(password);
+    if (isPassword_correct) {
+      const token = user.createJWT();
+      return res
+        .status(StatusCodes.OK)
+        .json({ user: { name: user.name }, token });
+    } else {
+      return res
+        .status(StatusCodes.BAD_REQUEST)
+        .json({ msg: "Incorrect password" });
+    }
   };
 }
 
